@@ -96,6 +96,11 @@ export class RoomService {
     });
   }
 
+  /** Read a room without changing it. */
+  async peek(rawCode: unknown): Promise<Room> {
+    return this.require(normalizeCode(rawCode));
+  }
+
   /** Delete inactive rooms. Returns the deleted codes. */
   async sweep(): Promise<string[]> {
     const deleted: string[] = [];

@@ -128,11 +128,14 @@ function VillageOverlay({ view, alarm, onDismiss }: PhaseProps & { alarm: AlarmV
         <>
           <Countdown endsAt={alarm.endsAt} />
           <p className="lead">{alarm.text}</p>
-          {view.me.alive && view.public.settings.allowTapButton && (
-            <button className="btn primary charm-btn relic-btn" onClick={() => run(actions.relic)}>
-              Tap relic
-            </button>
-          )}
+          {view.me.alive &&
+            (view.public.settings.allowTapButton ? (
+              <button className="btn primary charm-btn relic-btn" onClick={() => run(actions.relic)}>
+                Tap relic
+              </button>
+            ) : (
+              <p className="gold">Grab a relic card from the table and tap it!</p>
+            ))}
         </>
       )}
       <ErrorText error={error} />

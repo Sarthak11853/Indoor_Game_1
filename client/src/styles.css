@@ -73,6 +73,7 @@ button:disabled { opacity: 0.35; cursor: default; }
   font-size: 1.05rem;
   font-weight: 600;
 }
+a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: inherit; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #140f1d; }
 .btn.ghost { background: transparent; color: var(--muted); }
 .btn.small { min-height: 40px; padding: 8px 16px; font-size: 0.9rem; }
@@ -265,3 +266,29 @@ button:disabled { opacity: 0.35; cursor: default; }
 
 .dev-panel { border: 1px dashed #3a3150; border-radius: var(--radius); padding: 10px 14px; }
 .dev-panel summary { color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+
+/* ---------- NFC ---------- */
+.nfc-status { margin: 0; font-size: 0.8rem; color: #7fe0a8; white-space: nowrap; }
+.join-url { margin: 0; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; text-align: center; }
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: #1f2a22;
+  color: #c9f5da;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+.toast.bad { background: #3a1d24; color: #ffd6dc; }
+.tap-result { font-size: 4rem; margin: 0; }
+.tap-result.ok { color: #7fe0a8; }
+.tap-result.bad { color: var(--danger); }
+.small-title { font-size: 1.8rem; }
+.card-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.card-list li { display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.dev-panel input { flex: 1; min-width: 0; min-height: 40px; padding: 8px 12px; font-size: 0.95rem; }

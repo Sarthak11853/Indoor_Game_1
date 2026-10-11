@@ -56,6 +56,8 @@ export interface PublicPlayer {
   name: string;
   connected: boolean;
   alive: boolean;
+  /** Has linked a physical charm card in the lobby. */
+  hasCharm: boolean;
   /** Only revealed once the player is out, or for everyone at game over. */
   role?: Role;
 }
@@ -124,6 +126,8 @@ export interface PublicState {
 /** What only this one player may see. */
 export interface PrivateState {
   playerId: string;
+  /** Id of this player's linked charm card, if any (used by the dev panel to simulate it). */
+  charmId: string | null;
   role: Role | null;
   /** Other Possessed players; only ever filled in for the Possessed. */
   partners: string[];

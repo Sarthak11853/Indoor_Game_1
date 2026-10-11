@@ -3,12 +3,18 @@ import QRCode from 'qrcode';
 import { MAX_PLAYERS, MIN_PLAYERS, SETTING_LIMITS, type ClientView, type Settings } from '@hv/shared';
 import { actions } from '../game';
 import { mmss } from '../clock';
+import { usePublicBase, isLocalHost } from '../joinLink';
+import { NfcButton } from '../nfc/NfcControls';
+import { DevPanel, devMode } from './DevPanel';
 
 export function Lobby({ view }: { view: ClientView }) {
   const { code, players, hostId, settings } = view.public;
   const me = view.me.playerId;
   const isHost = me === hostId;
-  const joinUrl = `${location.origin}/?room=${code}`;
+  const base = usePublicBase();
+  const joinUrl = base && `${base}/?room=${code}`;
+  const unreachable = base !== null && isLocalHost(new URL(base).hostname);
+  const myself = players.find((p) => p.id === me);
   const missing = Math.max(0, MIN_PLAYERS - players.length);
   const [error, setError] = useState('');
 
@@ -25,9 +31,32 @@ export function Lobby({ view }: { view: ClientView }) {
       <header className="center stack-tight">
         <p className="muted small">Room code</p>
         <p className="room-code">{code}</p>
-        <QrCode text={joinUrl} />
-        <ShareButton url={joinUrl} code={code} />
+        {joinUrl ? (
+          <>
+            <QrCode text={joinUrl} />
+            <p className="join-url">{joinUrl}</p>
+          </>
+        ) : (
+          <p className="muted small">Preparing invite link…</p>
+        )}
+        {unreachable && (
+          <p className="error small">
+            Phones can’t open “localhost”. Start the game with a public address (see README) or open it via your
+            computer’s Wi-Fi address.
+          </p>
+        )}
+        {joinUrl && <ShareButton url={joinUrl} code={code} />}
       </header>
+
+      <section className="card">
+        <h2>Your charm</h2>
+        <p className="small">
+          {myself?.hasCharm
+            ? '✓ Linked. This card is yours for the whole game.'
+            : 'Tap your charm card on your phone to link it. No cards? You can play with on-screen buttons.'}
+        </p>
+        <NfcButton />
+      </section>
 
       <section className="card">
         <h2>
@@ -42,6 +71,7 @@ export function Lobby({ view }: { view: ClientView }) {
                 {p.name}
                 {p.id === hostId && <span title="Host"> 👑</span>}
                 {p.id === me && <span className="muted"> (you)</span>}
+                {p.hasCharm && <span title="Charm linked"> 🔮</span>}
                 {!p.connected && <span className="muted small"> · away</span>}
               </span>
               {isHost && (
@@ -70,6 +100,7 @@ export function Lobby({ view }: { view: ClientView }) {
 
       <SettingsCard settings={settings} editable={isHost} onError={report} />
 
+      {devMode && <DevPanel view={view} />}
       {error && <p className="error">{error}</p>}
       {missing > 0 ? (
         <p className="muted center">{`Waiting for ${missing} more player${missing > 1 ? 's' : ''}…`}</p>

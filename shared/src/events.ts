@@ -5,6 +5,21 @@ import type { AlarmKind, ClientView, RelicReward, Session, Settings } from './ty
 export type AckResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
 export type Ack<T extends object = object> = (res: AckResult<T>) => void;
 
+/** POST /api/tap body: the /tap page (iPhone, or Android with the game closed) reports a card tap. */
+export interface TapRequest {
+  code: string;
+  token: string;
+  cardId: string;
+}
+
+/** GET /api/public-url: where phones should be sent to join. */
+export interface PublicUrlInfo {
+  /** Set by the PUBLIC_URL environment variable on the server. */
+  publicUrl: string | null;
+  /** The server machine's Wi-Fi/LAN addresses, for dev on a local network. */
+  lanAddresses: string[];
+}
+
 export interface ClientToServerEvents {
   'room:create': (p: { name: string }, ack: Ack<{ session: Session }>) => void;
   'room:join': (p: { code: string; name: string }, ack: Ack<{ session: Session }>) => void;
@@ -26,6 +41,8 @@ export interface ClientToServerEvents {
   'game:relicReward': (p: RelicReward, ack: Ack) => void;
   'spirit:hint': (p: { targetId: string; text: string }, ack: Ack) => void;
   'spirit:haunt': (p: { targetId: string }, ack: Ack) => void;
+  /** A physical NFC card was tapped (via Web NFC, the /tap page or the dev panel). */
+  'card:tap': (p: { cardId: string }, ack: Ack<{ message: string }>) => void;
   /** Development only: fire an alarm now. Refused by production servers. */
   'dev:alarm': (p: { kind: AlarmKind }, ack: Ack) => void;
   'game:playAgain': (ack: Ack) => void;

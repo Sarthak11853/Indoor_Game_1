@@ -1,5 +1,6 @@
 import {
   ALARM_KINDS,
+  CARD_ID_PATTERN,
   DEFAULT_SETTINGS,
   MAX_NAME_LENGTH,
   MAX_PLAYERS,
@@ -62,10 +63,35 @@ export function newGame(code: string, hostId: string, hostName: string): GameSta
     hostId,
     players: [],
     settings: { ...DEFAULT_SETTINGS },
+    charms: {},
     ...freshMatch(),
   };
   return addPlayer(base, hostId, hostName);
 }
+
+export type CardMeaning = 'link' | 'alreadyLinked' | 'charm' | 'relic';
+
+/**
+ * What a card tap means for this player right now. In the lobby an unclaimed
+ * card becomes your charm; during a match your own charm is your charm and any
+ * card nobody claimed is a relic.
+ */
+export function cardMeaning(state: GameState, playerId: string, cardId: string): CardMeaning {
+  getPlayer(state, playerId);
+  if (!CARD_ID_PATTERN.test(cardId)) throw new RuleError('That is not a Haunted Village card.');
+  const owner = state.charms[cardId];
+  if (state.phase === 'lobby') {
+    if (owner === playerId) return 'alreadyLinked';
+    if (owner) throw new RuleError(`This charm already belongs to ${getPlayer(state, owner).name}.`);
+    return 'link';
+  }
+  if (owner === playerId) return 'charm';
+  if (owner) throw new RuleError('That charm belongs to someone else.');
+  return 'relic';
+}
+
+export const charmOf = (state: GameState, playerId: string) =>
+  Object.keys(state.charms).find((cardId) => state.charms[cardId] === playerId) ?? null;
 
 export function apply(state: GameState, action: Action, ctx: Context): GameState {
   if (state.midnightAt !== null && state.phase !== 'gameOver' && ctx.now >= state.midnightAt) {
@@ -111,6 +137,9 @@ export function apply(state: GameState, action: Action, ctx: Context): GameState
       inPhase(state, 'lobby');
       hostOnly(state, action.by);
       if (state.players.length < MIN_PLAYERS) throw new RuleError(`You need at least ${MIN_PLAYERS} players.`);
+      if (!state.settings.allowTapButton && state.players.some((p) => !charmOf(state, p.id))) {
+        throw new RuleError('Cards-only match: everyone must link a charm first.');
+      }
       const roles = assignRoles(
         state.players.map((p) => p.id),
         ctx.rng,
@@ -235,6 +264,26 @@ export function apply(state: GameState, action: Action, ctx: Context): GameState
         players: state.players.map((p) => ({ ...p, role: null, alive: true })),
       };
 
+    case 'cardTap': {
+      const { playerId, cardId } = action;
+      switch (cardMeaning(state, playerId, cardId)) {
+        case 'alreadyLinked':
+          return state;
+        case 'link': {
+          // One charm per player: linking a new card releases the old one.
+          const charms = Object.fromEntries(Object.entries(state.charms).filter(([, owner]) => owner !== playerId));
+          return { ...state, charms: { ...charms, [cardId]: playerId } };
+        }
+        case 'charm':
+          return apply(state, { type: 'charm', playerId, source: 'card' }, ctx);
+        case 'relic':
+          if (!state.alarms.some((a) => a.kind === 'relicRace' && !a.winnerId)) {
+            throw new RuleError('This relic is dormant… for now.');
+          }
+          return apply(state, { type: 'relic', playerId, cardId }, ctx);
+      }
+    }
+
     case 'devAlarm': {
       inPhase(state, 'day');
       if (!ALARM_KINDS.includes(action.kind)) throw new RuleError('Unknown alarm.');
@@ -321,7 +370,8 @@ function removePlayer(state: GameState, playerId: string): GameState {
   const players = state.players.filter((p) => p.id !== playerId);
   // The host role passes to the next seat when the host leaves.
   const hostId = state.hostId === playerId ? (players[0]?.id ?? '') : state.hostId;
-  return { ...state, players, hostId };
+  const charms = Object.fromEntries(Object.entries(state.charms).filter(([, owner]) => owner !== playerId));
+  return { ...state, players, hostId, charms };
 }
 
 function updatePlayer(state: GameState, playerId: string, patch: Partial<Player>): GameState {

@@ -48,6 +48,7 @@ describe('night', () => {
   it('rejects the on-screen charm button in a cards-only match', () => {
     const h = harness(4);
     h.act({ type: 'settings', by: 'p0', settings: { allowTapButton: false } });
+    ['p0', 'p1', 'p2', 'p3'].forEach((id) => h.act({ type: 'cardTap', playerId: id, cardId: `charm-${id}` }));
     h.toNight(['p3']);
     expect(() => h.act({ type: 'charm', playerId: 'p1', source: 'button' })).toThrow(/cards only/);
     h.act({ type: 'charm', playerId: 'p1', source: 'card' });

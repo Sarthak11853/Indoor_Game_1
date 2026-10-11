@@ -112,6 +112,7 @@ export const actions = {
   relicReward: (reward: RelicReward) => request((ack) => socket.emit('game:relicReward', reward, ack)),
   spiritHint: (targetId: string, text: string) => request((ack) => socket.emit('spirit:hint', { targetId, text }, ack)),
   spiritHaunt: (targetId: string) => request((ack) => socket.emit('spirit:haunt', { targetId }, ack)),
+  cardTap: (cardId: string) => request<{ message: string }>((ack) => socket.emit('card:tap', { cardId }, ack)),
   devAlarm: (kind: AlarmKind) => request((ack) => socket.emit('dev:alarm', { kind }, ack)),
   dismissNotice: () => set({ notice: null }),
 };

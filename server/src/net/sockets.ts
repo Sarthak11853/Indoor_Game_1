@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import type { Ack, ClientToServerEvents, RelicReward, ServerToClientEvents } from '@hv/shared';
-import { nextWakeAt } from '../game/machine';
+import { cardMeaning, nextWakeAt, type CardMeaning } from '../game/machine';
 import { RuleError, type Action } from '../game/types';
 import { viewFor } from '../game/view';
 import type { Room } from '../rooms/store';
@@ -13,6 +13,13 @@ interface SocketData {
 
 export type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 type HVSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
+
+const TAP_MESSAGES: Record<CardMeaning, string> = {
+  link: 'Charm linked. This card is yours now.',
+  alreadyLinked: 'This charm is already yours.',
+  charm: 'Charm tapped.',
+  relic: 'You touched the relic!',
+};
 
 export function registerSocketHandlers(io: IO, rooms: RoomService, dev = false) {
   // "CODE:playerId" -> ids of that player's open sockets (a player may have two tabs).
@@ -80,6 +87,14 @@ export function registerSocketHandlers(io: IO, rooms: RoomService, dev = false) 
     sockets?.delete(socket.id);
     if (sockets?.size === 0) presence.delete(key);
     await syncPresence(code, playerId);
+  }
+
+  /** Every card tap, whatever its source (Web NFC, the /tap page, dev panel), ends up here. */
+  async function tapCard(code: string, playerId: string, rawCardId: unknown): Promise<{ message: string }> {
+    const cardId = String(rawCardId ?? '');
+    const meaning = cardMeaning((await rooms.peek(code)).state, playerId, cardId);
+    await act(code, { type: 'cardTap', playerId, cardId });
+    return { message: TAP_MESSAGES[meaning] };
   }
 
   io.on('connection', (socket) => {
@@ -198,6 +213,13 @@ export function registerSocketHandlers(io: IO, rooms: RoomService, dev = false) 
       simple((playerId) => ({ type: 'spiritHaunt', playerId, targetId: String(p?.targetId) }))(ack),
     );
 
+    socket.on('card:tap', (p, ack) =>
+      respond(ack, async () => {
+        const { code, playerId } = seat();
+        return tapCard(code, playerId, p?.cardId);
+      }),
+    );
+
     socket.on('dev:alarm', (p, ack) => {
       if (!dev) return respond(ack, async () => Promise.reject(new RuleError('Dev tools are off.')));
       return simple(() => ({ type: 'devAlarm', kind: p?.kind }))(ack);
@@ -207,10 +229,12 @@ export function registerSocketHandlers(io: IO, rooms: RoomService, dev = false) 
       void detach(socket);
     });
   });
+
+  return { tapCard };
 }
 
 /** Run a handler and report its result or a player-safe error through the ack. */
-async function respond<T extends object>(ack: Ack<T> | unknown, fn: () => Promise<T>) {
+export async function respond<T extends object>(ack: Ack<T> | unknown, fn: () => Promise<T>) {
   const reply: Ack<T> = typeof ack === 'function' ? (ack as Ack<T>) : () => {};
   try {
     reply({ ok: true, ...(await fn()) });

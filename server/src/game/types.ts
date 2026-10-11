@@ -29,6 +29,8 @@ export interface GameState {
   /** Seating order, clockwise around the table. */
   players: Player[];
   settings: Settings;
+  /** Linked charm cards: card id -> player id. Kept between matches in the same room. */
+  charms: Record<string, string>;
   round: number;
   phaseEndsAt: number | null;
   /** When the midnight clock strikes; set when the first night begins. */
@@ -89,6 +91,8 @@ export type Action =
   | { type: 'spiritHint'; playerId: string; targetId: string; text: string }
   | { type: 'spiritHaunt'; playerId: string; targetId: string }
   | { type: 'playAgain'; by: string }
+  /** A physical card was tapped; its meaning depends on the phase and who owns it. */
+  | { type: 'cardTap'; playerId: string; cardId: string }
   /** Dev panel: fire an alarm of this kind right now. */
   | { type: 'devAlarm'; kind: AlarmKind }
   /** A timer fired: advance the phase if its time is up. */

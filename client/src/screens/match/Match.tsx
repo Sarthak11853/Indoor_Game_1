@@ -10,7 +10,8 @@ import { Result } from './Result';
 import { GameOver } from './GameOver';
 import { Alarms } from './Alarms';
 import { Inbox } from './Inbox';
-import { DevPanel, devMode } from './DevPanel';
+import { DevPanel, devMode } from '../DevPanel';
+import { NfcButton } from '../../nfc/NfcControls';
 
 const TITLES: Record<Phase, string> = {
   lobby: 'Lobby',
@@ -54,6 +55,7 @@ function MatchHeader({ view, title }: PhaseProps & { title: string }) {
         <p className="phase-title">{title}</p>
         {round > 0 && <p className="muted small">Round {round}</p>}
       </div>
+      <NfcButton compact />
       {phaseEndsAt !== null && <p className="phase-timer">{mmss(secondsLeft(phaseEndsAt, now))}</p>}
       {midnightAt !== null && phase !== 'gameOver' && (
         <p className={`midnight ${toMidnight <= 60 ? 'final' : ''}`} title="Midnight clock">

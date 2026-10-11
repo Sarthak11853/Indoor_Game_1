@@ -1,4 +1,5 @@
 import type { AlarmView, ClientView } from '@hv/shared';
+import { charmOf } from './machine';
 import { living, voteWeight } from './rules';
 import type { Alarm, GameState } from './types';
 
@@ -23,6 +24,7 @@ export function viewFor(state: GameState, playerId: string, now: number): Client
         name: p.name,
         connected: p.connected,
         alive: p.alive,
+        hasCharm: charmOf(state, p.id) !== null,
         // A role becomes public only once its owner is out, or when the game ends.
         ...(p.role && (!p.alive || state.phase === 'gameOver') ? { role: p.role } : {}),
       })),
@@ -40,6 +42,7 @@ export function viewFor(state: GameState, playerId: string, now: number): Client
     },
     me: {
       playerId,
+      charmId: charmOf(state, playerId),
       role,
       partners,
       alive: me?.alive ?? false,

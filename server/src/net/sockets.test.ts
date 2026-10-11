@@ -132,6 +132,42 @@ describe('lobby over sockets', () => {
     expect(res).toEqual({ ok: false, error: 'Dev tools are off.' });
   });
 
+  it('links a charm with a card tap over the socket', async () => {
+    const ana = await client();
+    await create(ana, 'Ana');
+    const linked = nextView(ana, (v) => v.me.charmId === 'card-abc');
+    const res = await new Promise<AckResult<{ message: string }>>((r) => ana.emit('card:tap', { cardId: 'card-abc' }, r));
+    expect(res).toEqual({ ok: true, message: 'Charm linked. This card is yours now.' });
+    expect((await linked).public.players[0].hasCharm).toBe(true);
+  });
+
+  it('accepts taps from the /tap page over HTTP with the saved session', async () => {
+    const ana = await client();
+    const session = await create(ana, 'Ana');
+    const linked = nextView(ana, (v) => v.me.charmId === 'card-ios');
+    const post = (body: object) =>
+      fetch(`${url}/api/tap`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then((r) => r.json());
+
+    expect(await post({ code: session.code, token: session.token, cardId: 'card-ios' })).toEqual({
+      ok: true,
+      message: 'Charm linked. This card is yours now.',
+    });
+    await linked;
+    expect(await post({ code: session.code, token: 'stolen', cardId: 'card-x' })).toMatchObject({ ok: false });
+  });
+
+  it('reports the public URL and LAN addresses for join links', async () => {
+    process.env.PUBLIC_URL = 'https://village.example';
+    const info = await fetch(`${url}/api/public-url`).then((r) => r.json());
+    delete process.env.PUBLIC_URL;
+    expect(info.publicUrl).toBe('https://village.example');
+    expect(Array.isArray(info.lanAddresses)).toBe(true);
+  });
+
   it('rejects host actions from non-hosts and malformed payloads', async () => {
     const ana = await client();
     const host = await create(ana, 'Ana');

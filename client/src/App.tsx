@@ -1,10 +1,22 @@
+import { useEffect } from 'react';
 import { actions, useGame } from './game';
+import { resumeNfcIfGranted } from './nfc';
+import { TapToast } from './nfc/NfcControls';
+import { CardWriter } from './pages/CardWriter';
+import { TapPage } from './pages/TapPage';
 import { Home } from './screens/Home';
 import { Lobby } from './screens/Lobby';
 import { Match } from './screens/match/Match';
 
 export function App() {
+  if (location.pathname === '/tap') return <TapPage />;
+  if (location.pathname === '/admin/cards') return <CardWriter />;
+  return <Game />;
+}
+
+function Game() {
   const { connected, resuming, view, notice } = useGame();
+  useEffect(() => void resumeNfcIfGranted(), []);
 
   let screen;
   if (resuming && !view) screen = <Status text="Finding your seat…" />;
@@ -21,6 +33,7 @@ export function App() {
         </button>
       )}
       {screen}
+      <TapToast />
     </>
   );
 }

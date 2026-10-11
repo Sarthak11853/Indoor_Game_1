@@ -1,31 +1,33 @@
-import { useEffect, useState } from 'react';
-import { DEFAULT_SETTINGS, type ServerInfo } from '@hv/shared';
-import { socket } from './socket';
+import { actions, useGame } from './game';
+import { Home } from './screens/Home';
+import { Lobby } from './screens/Lobby';
 
 export function App() {
-  const [connected, setConnected] = useState(socket.connected);
-  const [info, setInfo] = useState<ServerInfo | null>(null);
+  const { connected, resuming, view, notice } = useGame();
 
-  useEffect(() => {
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('serverInfo', setInfo);
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('serverInfo', setInfo);
-    };
-  }, []);
+  let screen;
+  if (resuming && !view) screen = <Status text="Finding your seat…" />;
+  else if (!view) screen = <Home />;
+  else if (view.public.phase === 'lobby') screen = <Lobby view={view} />;
+  else screen = <Status text="The game has begun…" />;
 
   return (
+    <>
+      {!connected && <div className="banner">Reconnecting to the village…</div>}
+      {notice && (
+        <button className="banner notice" onClick={actions.dismissNotice}>
+          {notice} <span aria-hidden>✕</span>
+        </button>
+      )}
+      {screen}
+    </>
+  );
+}
+
+function Status({ text }: { text: string }) {
+  return (
     <main className="screen center">
-      <h1 className="title">Haunted Village</h1>
-      <p className="muted">
-        {connected ? `Connected to ${info?.name ?? 'server'}` : 'Reaching the village…'}
-      </p>
-      <p className="muted small">Midnight strikes in {DEFAULT_SETTINGS.midnightSeconds / 60} minutes.</p>
+      <p className="muted">{text}</p>
     </main>
   );
 }

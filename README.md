@@ -22,4 +22,11 @@ npm run typecheck  # all packages
 npm run build && npm start   # production: one server on :3001 serving the client
 ```
 
-Phones on the same Wi-Fi can open the "Network" URL that Vite prints.
+Phones on the same Wi-Fi can open the "Network" URL that Vite prints. Open that same
+URL on the host's device too, so the lobby QR code points somewhere phones can reach.
+
+### Testing several players on one computer
+
+Each player's seat is saved in the browser, so normal tabs share one seat. Add
+`?as=<anything>` to give a tab its own seat, e.g. `http://localhost:5173/?as=ben`
+and `http://localhost:5173/?as=cy`.

@@ -1,6 +1,6 @@
 // Socket.IO event names and payloads. Both sides import these interfaces,
 // so a renamed or reshaped event is a compile error on both ends.
-import type { ClientView, Session, Settings } from './types';
+import type { AlarmKind, ClientView, RelicReward, Session, Settings } from './types';
 
 export type AckResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
 export type Ack<T extends object = object> = (res: AckResult<T>) => void;
@@ -20,6 +20,14 @@ export interface ClientToServerEvents {
   /** Night target or vote suspect, depending on the phase. */
   'game:pick': (p: { targetId: string }, ack: Ack) => void;
   'game:skipDay': (ack: Ack) => void;
+  'game:missionDone': (p: { alarmId: string }, ack: Ack) => void;
+  /** On-screen relic tap during a relic race (real relic cards come with the NFC layer). */
+  'game:relic': (ack: Ack) => void;
+  'game:relicReward': (p: RelicReward, ack: Ack) => void;
+  'spirit:hint': (p: { targetId: string; text: string }, ack: Ack) => void;
+  'spirit:haunt': (p: { targetId: string }, ack: Ack) => void;
+  /** Development only: fire an alarm now. Refused by production servers. */
+  'dev:alarm': (p: { kind: AlarmKind }, ack: Ack) => void;
   'game:playAgain': (ack: Ack) => void;
 }
 

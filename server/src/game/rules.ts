@@ -40,12 +40,16 @@ export function resolveNight(state: GameState, rng: () => number): NightResult {
   return { takenId: saved ? null : target, saved };
 }
 
-/** Each living player's vote counts once; a tie at the top eliminates nobody. */
+/** Votes a player casts this round: 1, plus or minus alarm and relic effects, never below 0. */
+export const voteWeight = (state: GameState, playerId: string) => Math.max(0, 1 + (state.voteBonus[playerId] ?? 0));
+
+/** Each living player's vote counts by its weight; a tie at the top eliminates nobody. */
 export function resolveVote(state: GameState): VoteResult {
   const tally: Record<string, number> = {};
   for (const p of living(state)) {
     const suspect = state.picks[p.id];
-    if (suspect) tally[suspect] = (tally[suspect] ?? 0) + 1;
+    const weight = voteWeight(state, p.id);
+    if (suspect && weight > 0) tally[suspect] = (tally[suspect] ?? 0) + weight;
   }
   const top = Math.max(0, ...Object.values(tally));
   const leaders = Object.keys(tally).filter((id) => tally[id] === top);
@@ -67,7 +71,7 @@ function pickTop(counts: Map<string, number>, rng: () => number): string | null 
   return leaders[Math.floor(rng() * leaders.length)];
 }
 
-function shuffle<T>(items: T[], rng: () => number): T[] {
+export function shuffle<T>(items: T[], rng: () => number): T[] {
   const out = [...items];
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));

@@ -1,4 +1,5 @@
 import {
+  ALARM_KINDS,
   DEFAULT_SETTINGS,
   MAX_NAME_LENGTH,
   MAX_PLAYERS,
@@ -9,7 +10,9 @@ import {
   type Settings,
   type WinReason,
 } from '@hv/shared';
-import { assignRoles, checkWinner, living, resolveNight, resolveVote } from './rules';
+import { addInbox, alarmGap, expireAlarms, fill, fireAlarm } from '../alarms/engine';
+import { DANGER, MISSION_OUTCOMES, RELIC_OUTCOMES, SPIRITS } from '../alarms/alarms.config';
+import { assignRoles, checkWinner, living, resolveNight, resolveVote, voteWeight } from './rules';
 import { RuleError, type Action, type Context, type GameState, type Player } from './types';
 
 // The game as a pure state machine: apply(state, action, ctx) returns the next
@@ -18,6 +21,7 @@ import { RuleError, type Action, type Context, type GameState, type Player } fro
 //   lobby → reveal → night → morning → day → vote → result → night …
 //                                 ↘ gameOver ↙ (win check after morning and result)
 //   The midnight clock ends the match from any phase once it strikes.
+//   During the day, surprise alarms fire on ticks (see alarms/engine.ts).
 
 const freshMatch = () => ({
   round: 0,
@@ -29,7 +33,27 @@ const freshMatch = () => ({
   lastVote: null,
   winner: null,
   winReason: null,
+  alarms: [],
+  nextAlarmAt: null,
+  seq: 0,
+  alarmCounts: {},
+  relicRaces: 0,
+  usedRelics: [],
+  voteBonus: {},
+  relicRewards: [],
+  inbox: {},
+  spiritActed: [],
+  pendingHints: [],
+  haunts: [],
 });
+
+/** The next moment a timer must wake this room, or null if nothing is pending. */
+export function nextWakeAt(state: GameState): number | null {
+  if (state.phase === 'gameOver' || state.phase === 'lobby') return null;
+  const times = [state.phaseEndsAt, state.midnightAt, state.nextAlarmAt, ...state.alarms.map((a) => a.endsAt)];
+  const due = times.filter((t): t is number => t !== null);
+  return due.length ? Math.min(...due) : null;
+}
 
 export function newGame(code: string, hostId: string, hostName: string): GameState {
   const base: GameState = {
@@ -108,12 +132,76 @@ export function apply(state: GameState, action: Action, ctx: Context): GameState
     }
 
     case 'charm': {
-      inPhase(state, 'night');
+      if (state.phase !== 'night' && state.phase !== 'day') throw new RuleError('Your charm is quiet right now.');
       livingPlayer(state, action.playerId);
       if (action.source === 'button' && !state.settings.allowTapButton) {
         throw new RuleError('This match is cards only: tap your physical charm.');
       }
-      return { ...state, ready: addOnce(state.ready, action.playerId) };
+      if (state.phase === 'night') return { ...state, ready: addOnce(state.ready, action.playerId) };
+      // By day the charm answers a danger alarm.
+      const alarm = state.alarms.find((a) => a.kind === 'danger' && a.targetId === action.playerId);
+      if (!alarm) throw new RuleError('Your charm is quiet right now.');
+      const next = { ...state, alarms: state.alarms.filter((a) => a.id !== alarm.id) };
+      return addInbox(next, action.playerId, 'alarm', DANGER.saved);
+    }
+
+    case 'missionDone': {
+      inPhase(state, 'day');
+      const alarm = state.alarms.find(
+        (a) => a.id === action.alarmId && a.kind === 'mission' && a.targetId === action.playerId && a.endsAt >= ctx.now,
+      );
+      if (!alarm) throw new RuleError('That mission is over.');
+      const next = {
+        ...state,
+        alarms: state.alarms.filter((a) => a.id !== alarm.id),
+        voteBonus: bump(state.voteBonus, action.playerId, 1),
+      };
+      return addInbox(next, action.playerId, 'alarm', MISSION_OUTCOMES.done);
+    }
+
+    case 'relic': {
+      inPhase(state, 'day');
+      livingPlayer(state, action.playerId);
+      if (action.cardId === null && !state.settings.allowTapButton) {
+        throw new RuleError('This match is cards only: tap a relic card.');
+      }
+      const race = state.alarms.find((a) => a.kind === 'relicRace' && !a.winnerId);
+      if (!race) throw new RuleError('No relic race is running.');
+      if (action.cardId && state.usedRelics.includes(action.cardId)) throw new RuleError('This relic’s power is spent.');
+      const next = {
+        ...state,
+        // Keep the race on screen a few seconds so everyone sees who won.
+        alarms: state.alarms.map((a) => (a.id === race.id ? { ...a, winnerId: action.playerId, endsAt: ctx.now + 4000 } : a)),
+        usedRelics: action.cardId ? [...state.usedRelics, action.cardId] : state.usedRelics,
+        relicRewards: addOnce(state.relicRewards, action.playerId),
+      };
+      return addInbox(next, action.playerId, 'relic', RELIC_OUTCOMES.won);
+    }
+
+    case 'relicReward': {
+      if (!state.relicRewards.includes(action.playerId)) throw new RuleError('You have no relic reward to claim.');
+      const next = { ...state, relicRewards: state.relicRewards.filter((id) => id !== action.playerId) };
+      if (action.reward.choice === 'vote') {
+        return addInbox({ ...next, voteBonus: bump(next.voteBonus, action.playerId, 1) }, action.playerId, 'relic', RELIC_OUTCOMES.vote);
+      }
+      const target = getPlayer(state, action.reward.targetId);
+      if (target.id === action.playerId) throw new RuleError('Choose someone else.');
+      const role = target.role === 'possessed' ? 'Possessed' : 'a Villager';
+      return addInbox(next, action.playerId, 'relic', fill(RELIC_OUTCOMES.peek, { a: target.name, role }));
+    }
+
+    case 'spiritHint':
+    case 'spiritHaunt': {
+      inPhase(state, 'night');
+      const me = getPlayer(state, action.playerId);
+      if (me.alive) throw new RuleError('Only Spirits can do that.');
+      if (state.spiritActed.includes(me.id)) throw new RuleError('You have already used your power tonight.');
+      const target = state.players.find((p) => p.id === action.targetId);
+      if (!target?.alive) throw new RuleError('Choose a living player.');
+      const next = { ...state, spiritActed: [...state.spiritActed, me.id] };
+      if (action.type === 'spiritHaunt') return { ...next, haunts: [...next.haunts, target.id] };
+      const text = cleanHint(action.text);
+      return { ...next, pendingHints: [...next.pendingHints, { to: target.id, text }] };
     }
 
     case 'pick': {
@@ -126,8 +214,10 @@ export function apply(state: GameState, action: Action, ctx: Context): GameState
         if (!state.ready.includes(me.id)) throw new RuleError('Tap your charm first.');
         if (me.role === 'possessed' && target.role === 'possessed') throw new RuleError('They are one of you.');
       }
+      if (state.phase === 'vote' && voteWeight(state, me.id) === 0) throw new RuleError('You lost your vote this round.');
       const next = { ...state, picks: { ...state.picks, [me.id]: target.id } };
-      return living(next).every((p) => next.picks[p.id]) ? advance(next, ctx) : next;
+      const waitingOn = living(next).filter((p) => !next.picks[p.id] && (next.phase === 'night' || voteWeight(next, p.id) > 0));
+      return waitingOn.length === 0 ? advance(next, ctx) : next;
     }
 
     case 'skipDay':
@@ -145,8 +235,20 @@ export function apply(state: GameState, action: Action, ctx: Context): GameState
         players: state.players.map((p) => ({ ...p, role: null, alive: true })),
       };
 
-    case 'tick':
-      return state.phaseEndsAt !== null && ctx.now >= state.phaseEndsAt ? advance(state, ctx) : state;
+    case 'devAlarm': {
+      inPhase(state, 'day');
+      if (!ALARM_KINDS.includes(action.kind)) throw new RuleError('Unknown alarm.');
+      const fired = fireAlarm(state, ctx, action.kind);
+      if (fired.alarms.length === state.alarms.length) throw new RuleError('That alarm cannot fire right now.');
+      // Keep the regular schedule: a forced alarm is extra.
+      return { ...fired, nextAlarmAt: state.nextAlarmAt };
+    }
+
+    case 'tick': {
+      let next = expireAlarms(state, ctx.now);
+      if (next.phase === 'day' && next.nextAlarmAt !== null && ctx.now >= next.nextAlarmAt) next = fireAlarm(next, ctx);
+      return next.phaseEndsAt !== null && ctx.now >= next.phaseEndsAt ? advance(next, ctx) : next;
+    }
   }
 }
 
@@ -165,23 +267,29 @@ function advance(state: GameState, ctx: Context): GameState {
         phase: 'night',
         round: state.round + 1,
         midnightAt: state.midnightAt ?? ctx.now + state.settings.midnightSeconds * 1000,
+        voteBonus: {},
+        spiritActed: [],
       };
     }
 
     case 'night': {
       const lastNight = resolveNight(state, ctx.rng);
-      const next = lastNight.takenId ? updatePlayer(state, lastNight.takenId, { alive: false }) : state;
-      return { ...next, ...timed(PHASE_SECONDS.morning), phase: 'morning', lastNight };
+      let next = lastNight.takenId ? updatePlayer(state, lastNight.takenId, { alive: false }) : state;
+      // Spirit hints written tonight arrive with the dawn.
+      for (const hint of next.pendingHints) next = addInbox(next, hint.to, 'spirit', fill(SPIRITS.hint, { text: hint.text }));
+      return { ...next, ...timed(PHASE_SECONDS.morning), phase: 'morning', lastNight, pendingHints: [] };
     }
 
     case 'morning': {
       const win = checkWinner(state);
       if (win) return endGame(state, win.winner, win.reason);
-      return { ...state, ...timed(state.settings.daySeconds), phase: 'day' };
+      const day = { ...state, ...timed(state.settings.daySeconds), phase: 'day' as const };
+      return { ...day, nextAlarmAt: ctx.now + alarmGap(day, ctx, true) };
     }
 
     case 'day':
-      return { ...state, ...timed(PHASE_SECONDS.vote), phase: 'vote' };
+      // Alarms belong to the day; any still running end without effect.
+      return { ...state, ...timed(PHASE_SECONDS.vote), phase: 'vote', alarms: [], nextAlarmAt: null };
 
     case 'vote': {
       const lastVote = resolveVote(state);
@@ -195,7 +303,7 @@ function advance(state: GameState, ctx: Context): GameState {
 }
 
 function endGame(state: GameState, winner: Role, winReason: WinReason): GameState {
-  return { ...state, phase: 'gameOver', phaseEndsAt: null, ready: [], picks: {}, winner, winReason };
+  return { ...state, phase: 'gameOver', phaseEndsAt: null, ready: [], picks: {}, alarms: [], nextAlarmAt: null, winner, winReason };
 }
 
 function addPlayer(state: GameState, playerId: string, rawName: string): GameState {
@@ -241,6 +349,14 @@ function cleanName(raw: unknown): string {
 }
 
 const addOnce = (list: string[], id: string) => (list.includes(id) ? list : [...list, id]);
+
+const bump = (counts: Record<string, number>, id: string, by: number) => ({ ...counts, [id]: (counts[id] ?? 0) + by });
+
+function cleanHint(raw: unknown): string {
+  const text = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim() : '';
+  if (!text) throw new RuleError('Write a hint first.');
+  return text.slice(0, SPIRITS.maxHintLength);
+}
 
 function getPlayer(state: GameState, playerId: string): Player {
   const player = state.players.find((p) => p.id === playerId);

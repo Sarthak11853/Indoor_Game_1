@@ -211,3 +211,57 @@ button:disabled { opacity: 0.35; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .midnight.final { animation: none; }
 }
+
+/* ---------- Alarms ---------- */
+.gold { color: var(--gold); margin: 0; }
+.row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+  text-align: center;
+  background: rgba(11, 10, 16, 0.94);
+}
+.overlay.danger { background: radial-gradient(circle, #2a0a10 40%, #5a0d18); box-shadow: inset 0 0 80px var(--danger); }
+.overlay.blackout { background: #000; }
+.overlay.relic { background: radial-gradient(circle, #2a2210 30%, #0b0a10); box-shadow: inset 0 0 80px rgba(243, 197, 91, 0.6); }
+.overlay.swap { background: radial-gradient(circle, #1a1630 30%, #0b0a10); }
+.alarm-kicker { text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.8rem; color: var(--muted); margin: 0; }
+.overlay.danger .alarm-kicker { color: #ffb3bc; }
+.overlay.relic .alarm-kicker { color: var(--gold); }
+.alarm-count { font-size: 3.4rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.alarm-card .alarm-count { font-size: 1.2rem; }
+.relic-btn { background: var(--gold); border-color: var(--gold); }
+.small-name { font-size: 1.6rem; }
+
+.alarm-card {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: #1f1830;
+  border: 1px solid var(--accent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.alarm-card p { margin: 0; }
+.alarm-card.whisper { border-color: #7aa2ff; }
+.alarm-card.relic-reward { border-color: var(--gold); }
+.alarm-card-head { display: flex; justify-content: space-between; align-items: center; }
+
+.inbox { background: var(--surface); border-radius: var(--radius); padding: 12px 16px; }
+.inbox summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; min-height: 32px; }
+.inbox ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.inbox li { font-size: 0.95rem; line-height: 1.35; }
+
+.dev-panel { border: 1px dashed #3a3150; border-radius: var(--radius); padding: 10px 14px; }
+.dev-panel summary { color: var(--muted); font-size: 0.85rem; cursor: pointer; }

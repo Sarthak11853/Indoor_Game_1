@@ -1,6 +1,6 @@
-import type { ClientView } from '@hv/shared';
-import { living } from './rules';
-import type { GameState } from './types';
+import type { AlarmView, ClientView } from '@hv/shared';
+import { living, voteWeight } from './rules';
+import type { Alarm, GameState } from './types';
 
 /**
  * The only place that decides what a player is allowed to see.
@@ -36,6 +36,7 @@ export function viewFor(state: GameState, playerId: string, now: number): Client
       lastVote: state.lastVote,
       winner: state.winner,
       winReason: state.winReason,
+      alarm: toView(state.alarms.find((a) => a.targetId === null)),
     },
     me: {
       playerId,
@@ -49,8 +50,20 @@ export function viewFor(state: GameState, playerId: string, now: number): Client
           ? Object.fromEntries(partners.filter((id) => state.picks[id]).map((id) => [id, state.picks[id]]))
           : {},
       ready: state.phase === 'reveal' && state.ready.includes(playerId),
+      // Personal alarms (missions especially) reveal a role, so only their target sees them.
+      alarms: state.alarms.filter((a) => a.targetId === playerId).map((a) => toView(a)!),
+      inbox: state.inbox[playerId] ?? [],
+      voteWeight: voteWeight(state, playerId),
+      relicReward: state.relicRewards.includes(playerId),
+      spiritActed: state.spiritActed.includes(playerId),
     },
   };
+}
+
+function toView(alarm: Alarm | undefined): AlarmView | null {
+  if (!alarm) return null;
+  const { id, kind, text, endsAt, winnerId } = alarm;
+  return { id, kind, text, endsAt, ...(winnerId ? { winnerId } : {}) };
 }
 
 function actedCount(state: GameState): number {

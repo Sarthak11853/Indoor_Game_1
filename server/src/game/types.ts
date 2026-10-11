@@ -1,4 +1,4 @@
-import type { NightResult, Phase, Role, Settings, VoteResult, WinReason } from '@hv/shared';
+import type { AlarmKind, InboxItem, NightResult, Phase, RelicReward, Role, Settings, VoteResult, WinReason } from '@hv/shared';
 
 // The server's full game state. It holds secrets (roles, picks), so it is
 // never sent to clients directly; see view.ts for what each player sees.
@@ -9,6 +9,17 @@ export interface Player {
   connected: boolean;
   role: Role | null;
   alive: boolean;
+}
+
+export interface Alarm {
+  id: string;
+  kind: AlarmKind;
+  /** Who it is aimed at; null for village-wide alarms. */
+  targetId: string | null;
+  text: string;
+  endsAt: number;
+  /** Relic race: the winner. Once set, the race is over and only shown until endsAt. */
+  winnerId?: string;
 }
 
 export interface GameState {
@@ -30,6 +41,32 @@ export interface GameState {
   lastVote: VoteResult | null;
   winner: Role | null;
   winReason: WinReason | null;
+
+  // ── Surprise alarms ──
+  /** Alarms currently running. */
+  alarms: Alarm[];
+  /** When the next alarm fires (only during the day). */
+  nextAlarmAt: number | null;
+  /** Counter for alarm and inbox ids. */
+  seq: number;
+  /** Personal alarms received per player, so they are spread fairly. */
+  alarmCounts: Record<string, number>;
+  relicRaces: number;
+  /** Relic card ids that have already granted a bonus this match. */
+  usedRelics: string[];
+  /** Extra (+) or lost (−) votes this round, by player id. */
+  voteBonus: Record<string, number>;
+  /** Players who won a relic race and have not chosen their reward yet. */
+  relicRewards: string[];
+  inbox: Record<string, InboxItem[]>;
+
+  // ── Spirits ──
+  /** Spirits who used their power this night. */
+  spiritActed: string[];
+  /** Hints written tonight, delivered at morning. */
+  pendingHints: { to: string; text: string }[];
+  /** Players a spirit chose to haunt: each gets a danger alarm next day. */
+  haunts: string[];
 }
 
 export type Action =
@@ -45,7 +82,15 @@ export type Action =
   | { type: 'charm'; playerId: string; source: 'button' | 'card' }
   | { type: 'pick'; playerId: string; targetId: string }
   | { type: 'skipDay'; by: string }
+  | { type: 'missionDone'; playerId: string; alarmId: string }
+  /** cardId is null for the on-screen fallback button. */
+  | { type: 'relic'; playerId: string; cardId: string | null }
+  | { type: 'relicReward'; playerId: string; reward: RelicReward }
+  | { type: 'spiritHint'; playerId: string; targetId: string; text: string }
+  | { type: 'spiritHaunt'; playerId: string; targetId: string }
   | { type: 'playAgain'; by: string }
+  /** Dev panel: fire an alarm of this kind right now. */
+  | { type: 'devAlarm'; kind: AlarmKind }
   /** A timer fired: advance the phase if its time is up. */
   | { type: 'tick' };
 

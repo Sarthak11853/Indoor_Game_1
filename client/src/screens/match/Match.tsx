@@ -8,6 +8,9 @@ import { Day } from './Day';
 import { Vote } from './Vote';
 import { Result } from './Result';
 import { GameOver } from './GameOver';
+import { Alarms } from './Alarms';
+import { Inbox } from './Inbox';
+import { DevPanel, devMode } from './DevPanel';
 
 const TITLES: Record<Phase, string> = {
   lobby: 'Lobby',
@@ -30,9 +33,12 @@ export function Match({ view }: PhaseProps) {
     <main className={`screen phase-${phase} ${view.me.alive || phase === 'gameOver' ? '' : 'spirit'}`}>
       <MatchHeader view={view} title={TITLES[phase]} />
       {!view.me.alive && phase !== 'gameOver' && (
-        <p className="spirit-note">You are a Spirit. You can watch, but not vote or act.</p>
+        <p className="spirit-note">You are a Spirit. You cannot vote, but each night you can haunt the living.</p>
       )}
       <Screen view={view} />
+      {phase !== 'reveal' && phase !== 'gameOver' && <Inbox view={view} />}
+      {devMode && <DevPanel view={view} />}
+      <Alarms view={view} />
     </main>
   );
 }

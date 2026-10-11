@@ -10,7 +10,10 @@ import { RoomService } from './rooms/service';
 // Works from both src/ (dev) and dist/ (prod): each is one level below server/.
 const clientDist = fileURLToPath(new URL('../../client/dist', import.meta.url));
 
-export function createGameServer(rooms = new RoomService(new MemoryRoomStore())) {
+/** Dev tools (alarm triggers, simulated card taps) are on except in the production build. */
+export const DEV_TOOLS = process.env.NODE_ENV !== 'production' || process.env.HV_DEV === '1';
+
+export function createGameServer(rooms = new RoomService(new MemoryRoomStore()), dev = DEV_TOOLS) {
   const app = express();
   app.get('/health', (_req, res) => {
     res.json({ ok: true });
@@ -24,6 +27,6 @@ export function createGameServer(rooms = new RoomService(new MemoryRoomStore()))
 
   const httpServer = createServer(app);
   const io: IO = new Server(httpServer);
-  registerSocketHandlers(io, rooms);
+  registerSocketHandlers(io, rooms, dev);
   return { httpServer, io, rooms };
 }

@@ -1,5 +1,6 @@
 import type { Server, Socket } from 'socket.io';
-import type { Ack, ClientToServerEvents, ServerToClientEvents } from '@hv/shared';
+import type { Ack, ClientToServerEvents, RelicReward, ServerToClientEvents } from '@hv/shared';
+import { nextWakeAt } from '../game/machine';
 import { RuleError, type Action } from '../game/types';
 import { viewFor } from '../game/view';
 import type { Room } from '../rooms/store';
@@ -13,7 +14,7 @@ interface SocketData {
 export type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 type HVSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
-export function registerSocketHandlers(io: IO, rooms: RoomService) {
+export function registerSocketHandlers(io: IO, rooms: RoomService, dev = false) {
   // "CODE:playerId" -> ids of that player's open sockets (a player may have two tabs).
   const presence = new Map<string, Set<string>>();
   // One pending phase/midnight timer per room.
@@ -29,14 +30,13 @@ export function registerSocketHandlers(io: IO, rooms: RoomService) {
     }
   }
 
-  /** Wake the room up when its phase ends or the midnight clock strikes. */
+  /** Wake the room up when a phase ends, an alarm fires or expires, or midnight strikes. */
   function schedule(code: string, room: Room | null) {
     clearTimeout(timers.get(code));
     timers.delete(code);
-    if (!room || room.state.phase === 'gameOver') return;
-    const due = [room.state.phaseEndsAt, room.state.midnightAt].filter((t): t is number => t !== null);
-    if (due.length === 0) return;
-    const delay = Math.max(0, Math.min(...due) - rooms.now()) + 20;
+    const due = room && nextWakeAt(room.state);
+    if (!due) return;
+    const delay = Math.max(0, due - rooms.now()) + 20;
     timers.set(
       code,
       setTimeout(() => act(code, { type: 'tick' }).catch(() => {}), delay),
@@ -171,6 +171,37 @@ export function registerSocketHandlers(io: IO, rooms: RoomService) {
     socket.on('game:pick', (p, ack) =>
       simple((playerId) => ({ type: 'pick', playerId, targetId: String(p?.targetId) }))(ack),
     );
+
+    socket.on('game:relic', simple((playerId) => ({ type: 'relic', playerId, cardId: null })));
+    socket.on('game:missionDone', (p, ack) =>
+      simple((playerId) => ({ type: 'missionDone', playerId, alarmId: String(p?.alarmId) }))(ack),
+    );
+    socket.on('game:relicReward', (p, ack) => {
+      const reward: RelicReward | null =
+        p?.choice === 'vote'
+          ? { choice: 'vote' }
+          : p?.choice === 'peek'
+            ? { choice: 'peek', targetId: String(p.targetId) }
+            : null;
+      return reward
+        ? simple((playerId) => ({ type: 'relicReward', playerId, reward }))(ack)
+        : respond(ack, async () => {
+            throw new RuleError('Choose a reward.');
+          });
+    });
+    socket.on('spirit:hint', (p, ack) =>
+      simple((playerId) => ({ type: 'spiritHint', playerId, targetId: String(p?.targetId), text: String(p?.text ?? '') }))(
+        ack,
+      ),
+    );
+    socket.on('spirit:haunt', (p, ack) =>
+      simple((playerId) => ({ type: 'spiritHaunt', playerId, targetId: String(p?.targetId) }))(ack),
+    );
+
+    socket.on('dev:alarm', (p, ack) => {
+      if (!dev) return respond(ack, async () => Promise.reject(new RuleError('Dev tools are off.')));
+      return simple(() => ({ type: 'devAlarm', kind: p?.kind }))(ack);
+    });
 
     socket.on('disconnect', () => {
       void detach(socket);

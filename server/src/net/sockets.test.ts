@@ -121,6 +121,17 @@ describe('lobby over sockets', () => {
     expect((await Promise.all(nights)).every((v) => v.public.round === 1 && v.public.midnightAt)).toBe(true);
   });
 
+  it('refuses dev tools when they are switched off', async () => {
+    await server.io.close();
+    server = createGameServer(undefined, false);
+    await new Promise<void>((resolve) => server.httpServer.listen(0, resolve));
+    url = `http://localhost:${(server.httpServer.address() as AddressInfo).port}`;
+    const ana = await client();
+    await create(ana, 'Ana');
+    const res = await new Promise<AckResult>((r) => ana.emit('dev:alarm', { kind: 'danger' }, r));
+    expect(res).toEqual({ ok: false, error: 'Dev tools are off.' });
+  });
+
   it('rejects host actions from non-hosts and malformed payloads', async () => {
     const ana = await client();
     const host = await create(ana, 'Ana');

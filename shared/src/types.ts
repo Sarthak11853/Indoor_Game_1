@@ -46,6 +46,7 @@ export const PHASE_SECONDS = {
 export const MIN_PLAYERS = 4;
 export const MAX_PLAYERS = 12;
 export const MAX_NAME_LENGTH = 16;
+export const MAX_HINT_LENGTH = 80;
 /** Room codes avoid I and O so they can't be confused with 1 and 0. */
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const ROOM_CODE_LENGTH = 4;
@@ -60,6 +61,29 @@ export interface PublicPlayer {
 }
 
 export type WinReason = 'possessedGone' | 'outnumbered' | 'midnight';
+
+export const ALARM_KINDS = ['danger', 'mission', 'whisper', 'blackout', 'swapSeats', 'relicRace'] as const;
+export type AlarmKind = (typeof ALARM_KINDS)[number];
+
+/** An alarm as one phone sees it. */
+export interface AlarmView {
+  id: string;
+  kind: AlarmKind;
+  text: string;
+  endsAt: number;
+  /** Relic race only: who won it, once someone has. */
+  winnerId?: string;
+}
+
+/** A private message kept on the player's phone: clues, spirit hints, alarm outcomes. */
+export interface InboxItem {
+  id: string;
+  round: number;
+  source: 'clue' | 'spirit' | 'relic' | 'alarm';
+  text: string;
+}
+
+export type RelicReward = { choice: 'vote' } | { choice: 'peek'; targetId: string };
 
 export interface NightResult {
   /** Who the Possessed took, or null if nobody was taken. */
@@ -93,6 +117,8 @@ export interface PublicState {
   lastVote: VoteResult | null;
   winner: Role | null;
   winReason: WinReason | null;
+  /** The village-wide alarm everyone sees right now, if any. */
+  alarm: AlarmView | null;
 }
 
 /** What only this one player may see. */
@@ -110,6 +136,15 @@ export interface PrivateState {
   partnerPicks: Record<string, string>;
   /** Reveal phase: has confirmed they saw their role. */
   ready: boolean;
+  /** Personal alarms aimed at this player right now. */
+  alarms: AlarmView[];
+  inbox: InboxItem[];
+  /** How many votes this player casts this round (0 after a missed danger alarm). */
+  voteWeight: number;
+  /** Won a relic race and still has to choose a reward. */
+  relicReward: boolean;
+  /** Spirit only: has used tonight's power. */
+  spiritActed: boolean;
 }
 
 export interface ClientView {

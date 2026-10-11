@@ -1,6 +1,15 @@
 import { useSyncExternalStore } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { AckResult, ClientToServerEvents, ClientView, ServerToClientEvents, Session, Settings } from '@hv/shared';
+import type {
+  AckResult,
+  AlarmKind,
+  ClientToServerEvents,
+  ClientView,
+  RelicReward,
+  ServerToClientEvents,
+  Session,
+  Settings,
+} from '@hv/shared';
 import { load, save } from './storage';
 
 // Client-side game store: holds the latest view from the server and the
@@ -98,5 +107,11 @@ export const actions = {
   pick: (targetId: string) => request((ack) => socket.emit('game:pick', { targetId }, ack)),
   skipDay: () => request((ack) => socket.emit('game:skipDay', ack)),
   playAgain: () => request((ack) => socket.emit('game:playAgain', ack)),
+  missionDone: (alarmId: string) => request((ack) => socket.emit('game:missionDone', { alarmId }, ack)),
+  relic: () => request((ack) => socket.emit('game:relic', ack)),
+  relicReward: (reward: RelicReward) => request((ack) => socket.emit('game:relicReward', reward, ack)),
+  spiritHint: (targetId: string, text: string) => request((ack) => socket.emit('spirit:hint', { targetId, text }, ack)),
+  spiritHaunt: (targetId: string) => request((ack) => socket.emit('spirit:haunt', { targetId }, ack)),
+  devAlarm: (kind: AlarmKind) => request((ack) => socket.emit('dev:alarm', { kind }, ack)),
   dismissNotice: () => set({ notice: null }),
 };

@@ -1,10 +1,11 @@
 import { actions } from '../../game';
 import { ErrorText, nameOf, PlayerPicker, Progress, useAction, type PhaseProps } from './common';
+import { SpiritNight } from './SpiritNight';
 
 export function Night({ view }: PhaseProps) {
   const { me } = view;
   const { run, error } = useAction();
-  if (!me.alive) return <p className="muted center">The village sleeps…</p>;
+  if (!me.alive) return <SpiritNight view={view} />;
 
   const possessed = me.role === 'possessed';
   const targets = view.public.players.filter(

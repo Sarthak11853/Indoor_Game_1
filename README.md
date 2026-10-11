@@ -1,1 +1,25 @@
-# Indoor_Game_1
+# Haunted Village
+
+A real-time party game for 4–12 players in one room: phones in the browser plus physical NFC cards.
+
+## Layout
+
+```
+shared/   TypeScript types + Socket.IO event names used by both sides
+server/   Node + Socket.IO, authoritative game state (src/game is pure, unit-tested)
+client/   React + Vite + TypeScript mobile web app
+```
+
+## Run it locally
+
+Requires Node 20+.
+
+```bash
+npm install
+npm run dev        # server on :3001, client on http://localhost:5173
+npm test           # server unit tests
+npm run typecheck  # all packages
+npm run build && npm start   # production: one server on :3001 serving the client
+```
+
+Phones on the same Wi-Fi can open the "Network" URL that Vite prints.

@@ -1,6 +1,7 @@
 import { actions, useGame } from './game';
 import { Home } from './screens/Home';
 import { Lobby } from './screens/Lobby';
+import { Match } from './screens/match/Match';
 
 export function App() {
   const { connected, resuming, view, notice } = useGame();
@@ -9,7 +10,7 @@ export function App() {
   if (resuming && !view) screen = <Status text="Finding your seat…" />;
   else if (!view) screen = <Home />;
   else if (view.public.phase === 'lobby') screen = <Lobby view={view} />;
-  else screen = <Status text="The game has begun…" />;
+  else screen = <Match view={view} />;
 
   return (
     <>

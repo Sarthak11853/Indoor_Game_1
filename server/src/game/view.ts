@@ -1,4 +1,5 @@
 import type { ClientView } from '@hv/shared';
+import { living } from './rules';
 import type { GameState } from './types';
 
 /**
@@ -6,15 +7,54 @@ import type { GameState } from './types';
  * Everything sent to a phone goes through here: public state plus that
  * player's own private state, and nothing about anyone else's secrets.
  */
-export function viewFor(state: GameState, playerId: string): ClientView {
+export function viewFor(state: GameState, playerId: string, now: number): ClientView {
+  const me = state.players.find((p) => p.id === playerId);
+  const role = me?.role ?? null;
+  const partners =
+    role === 'possessed' ? state.players.filter((p) => p.role === 'possessed' && p.id !== playerId).map((p) => p.id) : [];
+
   return {
     public: {
       code: state.code,
       phase: state.phase,
       hostId: state.hostId,
-      players: state.players.map(({ id, name, connected }) => ({ id, name, connected })),
+      players: state.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        connected: p.connected,
+        alive: p.alive,
+        // A role becomes public only once its owner is out, or when the game ends.
+        ...(p.role && (!p.alive || state.phase === 'gameOver') ? { role: p.role } : {}),
+      })),
       settings: state.settings,
+      round: state.round,
+      serverNow: now,
+      phaseEndsAt: state.phaseEndsAt,
+      midnightAt: state.midnightAt,
+      actedCount: actedCount(state),
+      lastNight: state.lastNight,
+      lastVote: state.lastVote,
+      winner: state.winner,
+      winReason: state.winReason,
     },
-    me: { playerId },
+    me: {
+      playerId,
+      role,
+      partners,
+      alive: me?.alive ?? false,
+      charmed: state.phase === 'night' && state.ready.includes(playerId),
+      pick: state.picks[playerId] ?? null,
+      partnerPicks:
+        state.phase === 'night'
+          ? Object.fromEntries(partners.filter((id) => state.picks[id]).map((id) => [id, state.picks[id]]))
+          : {},
+      ready: state.phase === 'reveal' && state.ready.includes(playerId),
+    },
   };
+}
+
+function actedCount(state: GameState): number {
+  if (state.phase === 'reveal') return state.ready.length;
+  if (state.phase === 'night' || state.phase === 'vote') return living(state).filter((p) => state.picks[p.id]).length;
+  return 0;
 }

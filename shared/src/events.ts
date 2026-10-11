@@ -13,6 +13,14 @@ export interface ClientToServerEvents {
   'lobby:reorder': (p: { order: string[] }, ack: Ack) => void;
   'lobby:settings': (p: Partial<Settings>, ack: Ack) => void;
   'lobby:kick': (p: { playerId: string }, ack: Ack) => void;
+  'game:start': (ack: Ack) => void;
+  'game:ready': (ack: Ack) => void;
+  /** On-screen charm tap (NFC taps arrive through the card layer in a later milestone). */
+  'game:charm': (ack: Ack) => void;
+  /** Night target or vote suspect, depending on the phase. */
+  'game:pick': (p: { targetId: string }, ack: Ack) => void;
+  'game:skipDay': (ack: Ack) => void;
+  'game:playAgain': (ack: Ack) => void;
 }
 
 export interface ServerToClientEvents {

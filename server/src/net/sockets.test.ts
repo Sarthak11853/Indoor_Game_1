@@ -98,6 +98,29 @@ describe('lobby over sockets', () => {
     expect((await resume(ben, benSession)).ok).toBe(false);
   });
 
+  it('starts a match where each phone learns only its own role', async () => {
+    const phones = [await client()];
+    const host = await create(phones[0], 'Ana');
+    for (const name of ['Ben', 'Cy', 'Dee']) {
+      const c = await client();
+      ok(await join(c, host.code, name));
+      phones.push(c);
+    }
+    const reveals = phones.map((c) => nextView(c, (v) => v.public.phase === 'reveal'));
+    ok(await new Promise<AckResult>((r) => phones[0].emit('game:start', r)));
+    const views = await Promise.all(reveals);
+
+    expect(views.filter((v) => v.me.role === 'possessed')).toHaveLength(1);
+    for (const v of views) {
+      expect(v.me.role).not.toBeNull();
+      expect(v.public.players.every((p) => p.role === undefined)).toBe(true);
+    }
+
+    const nights = phones.map((c) => nextView(c, (v) => v.public.phase === 'night'));
+    for (const c of phones) ok(await new Promise<AckResult>((r) => c.emit('game:ready', r)));
+    expect((await Promise.all(nights)).every((v) => v.public.round === 1 && v.public.midnightAt)).toBe(true);
+  });
+
   it('rejects host actions from non-hosts and malformed payloads', async () => {
     const ana = await client();
     const host = await create(ana, 'Ana');

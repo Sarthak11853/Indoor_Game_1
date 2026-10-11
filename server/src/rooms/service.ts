@@ -1,7 +1,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, type Session } from '@hv/shared';
 import { apply, newGame } from '../game/machine';
-import { RuleError, type Action } from '../game/types';
+import { RuleError, type Action, type Context } from '../game/types';
 import type { Room, RoomStore } from './store';
 
 /** A room nobody is connected to is removed after this long without activity. */
@@ -31,8 +31,13 @@ export class RoomService {
 
   constructor(
     private store: RoomStore,
-    private now: () => number = Date.now,
+    readonly now: () => number = Date.now,
+    private rng: () => number = Math.random,
   ) {}
+
+  private ctx(): Context {
+    return { now: this.now(), rng: this.rng };
+  }
 
   async create(name: string): Promise<{ room: Room; session: Session }> {
     for (let attempt = 0; attempt < 50; attempt++) {
@@ -53,7 +58,7 @@ export class RoomService {
     return this.serial(code, async () => {
       const room = await this.require(code);
       const playerId = randomId(6);
-      room.state = apply(room.state, { type: 'join', playerId, name });
+      room.state = apply(room.state, { type: 'join', playerId, name }, this.ctx());
       return this.saveWithToken(room, playerId);
     });
   }
@@ -75,7 +80,7 @@ export class RoomService {
   async act(code: string, action: Action): Promise<Room | null> {
     return this.serial(code, async () => {
       const room = await this.require(code);
-      room.state = apply(room.state, action);
+      room.state = apply(room.state, action, this.ctx());
       room.lastActive = this.now();
       // Forget tokens of players who are no longer seated (left or kicked).
       const seated = new Set(room.state.players.map((p) => p.id));

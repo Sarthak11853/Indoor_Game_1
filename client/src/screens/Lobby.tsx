@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { MAX_PLAYERS, MIN_PLAYERS, SETTING_LIMITS, type ClientView, type Settings } from '@hv/shared';
 import { actions } from '../game';
+import { mmss } from '../clock';
 
 export function Lobby({ view }: { view: ClientView }) {
   const { code, players, hostId, settings } = view.public;
@@ -70,13 +71,15 @@ export function Lobby({ view }: { view: ClientView }) {
       <SettingsCard settings={settings} editable={isHost} onError={report} />
 
       {error && <p className="error">{error}</p>}
-      <p className="muted center">
-        {missing > 0
-          ? `Waiting for ${missing} more player${missing > 1 ? 's' : ''}…`
-          : isHost
-            ? 'Everyone here? The game start arrives in the next milestone.'
-            : 'Waiting for the host to begin…'}
-      </p>
+      {missing > 0 ? (
+        <p className="muted center">{`Waiting for ${missing} more player${missing > 1 ? 's' : ''}…`}</p>
+      ) : isHost ? (
+        <button className="btn primary" onClick={() => actions.start().then(report)}>
+          Begin the night
+        </button>
+      ) : (
+        <p className="muted center">Waiting for the host to begin…</p>
+      )}
       <button className="btn ghost" onClick={() => actions.leave()}>
         Leave room
       </button>
@@ -114,7 +117,6 @@ function ShareButton({ url, code }: { url: string; code: string }) {
   );
 }
 
-const minutes = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 const NUMERIC: { key: keyof typeof SETTING_LIMITS; label: string; step: number }[] = [
   { key: 'midnightSeconds', label: 'Midnight clock', step: 60 },
@@ -147,7 +149,7 @@ function SettingsCard({
                 −
               </button>
             )}
-            <span className="value">{minutes(value)}</span>
+            <span className="value">{mmss(value)}</span>
             {editable && (
               <button aria-label={`More ${label}`} disabled={value >= max} onClick={() => update({ [key]: value + step })}>
                 +

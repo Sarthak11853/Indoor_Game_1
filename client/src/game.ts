@@ -13,6 +13,8 @@ export interface GameStore {
   session: Session | null;
   view: ClientView | null;
   notice: string | null;
+  /** Server clock minus phone clock, so countdowns agree across phones. */
+  clockOffset: number;
 }
 
 const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io();
@@ -23,6 +25,7 @@ let store: GameStore = {
   resuming: load<Session>('session') !== null,
   view: null,
   notice: null,
+  clockOffset: 0,
 };
 const listeners = new Set<() => void>();
 
@@ -51,7 +54,7 @@ socket.on('connect', () => {
   });
 });
 socket.on('disconnect', () => set({ connected: false }));
-socket.on('view', (view) => set({ view, resuming: false }));
+socket.on('view', (view) => set({ view, resuming: false, clockOffset: view.public.serverNow - Date.now() }));
 socket.on('kicked', () => {
   setSession(null);
   set({ notice: 'The host removed you from the room.' });
@@ -89,5 +92,11 @@ export const actions = {
   reorder: (order: string[]) => request((ack) => socket.emit('lobby:reorder', { order }, ack)),
   updateSettings: (settings: Partial<Settings>) => request((ack) => socket.emit('lobby:settings', settings, ack)),
   kick: (playerId: string) => request((ack) => socket.emit('lobby:kick', { playerId }, ack)),
+  start: () => request((ack) => socket.emit('game:start', ack)),
+  ready: () => request((ack) => socket.emit('game:ready', ack)),
+  charm: () => request((ack) => socket.emit('game:charm', ack)),
+  pick: (targetId: string) => request((ack) => socket.emit('game:pick', { targetId }, ack)),
+  skipDay: () => request((ack) => socket.emit('game:skipDay', ack)),
+  playAgain: () => request((ack) => socket.emit('game:playAgain', ack)),
   dismissNotice: () => set({ notice: null }),
 };

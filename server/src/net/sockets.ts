@@ -16,18 +16,36 @@ type HVSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string
 export function registerSocketHandlers(io: IO, rooms: RoomService) {
   // "CODE:playerId" -> ids of that player's open sockets (a player may have two tabs).
   const presence = new Map<string, Set<string>>();
+  // One pending phase/midnight timer per room.
+  const timers = new Map<string, NodeJS.Timeout>();
 
   /** Send every phone in the room its own view. */
   async function broadcast(room: Room) {
+    const now = rooms.now();
     for (const s of await io.in(room.state.code).fetchSockets()) {
       if (s.data.playerId && room.state.players.some((p) => p.id === s.data.playerId)) {
-        s.emit('view', viewFor(room.state, s.data.playerId));
+        s.emit('view', viewFor(room.state, s.data.playerId, now));
       }
     }
   }
 
+  /** Wake the room up when its phase ends or the midnight clock strikes. */
+  function schedule(code: string, room: Room | null) {
+    clearTimeout(timers.get(code));
+    timers.delete(code);
+    if (!room || room.state.phase === 'gameOver') return;
+    const due = [room.state.phaseEndsAt, room.state.midnightAt].filter((t): t is number => t !== null);
+    if (due.length === 0) return;
+    const delay = Math.max(0, Math.min(...due) - rooms.now()) + 20;
+    timers.set(
+      code,
+      setTimeout(() => act(code, { type: 'tick' }).catch(() => {}), delay),
+    );
+  }
+
   async function act(code: string, action: Action) {
     const room = await rooms.act(code, action);
+    schedule(code, room);
     if (room) await broadcast(room);
     return room;
   }
@@ -135,6 +153,23 @@ export function registerSocketHandlers(io: IO, rooms: RoomService) {
         }
         return {};
       }),
+    );
+
+    /** Handler for an action that only needs to know who sent it. */
+    const simple = (build: (playerId: string) => Action) => (ack: Ack) =>
+      respond(ack, async () => {
+        const { code, playerId } = seat();
+        await act(code, build(playerId));
+        return {};
+      });
+
+    socket.on('game:start', simple((by) => ({ type: 'start', by })));
+    socket.on('game:ready', simple((playerId) => ({ type: 'ready', playerId })));
+    socket.on('game:charm', simple((playerId) => ({ type: 'charm', playerId, source: 'button' })));
+    socket.on('game:skipDay', simple((by) => ({ type: 'skipDay', by })));
+    socket.on('game:playAgain', simple((by) => ({ type: 'playAgain', by })));
+    socket.on('game:pick', (p, ack) =>
+      simple((playerId) => ({ type: 'pick', playerId, targetId: String(p?.targetId) }))(ack),
     );
 
     socket.on('disconnect', () => {

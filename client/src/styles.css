@@ -207,7 +207,11 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .tally li.dead span:first-child { opacity: 0.6; }
 
 .spirit-note { margin: 0; padding: 10px 14px; border-radius: 10px; background: #1d2230; color: #b9c6e0; text-align: center; font-size: 0.9rem; }
-.spirit { filter: grayscale(0.8); }
+/* Spirits: the world drains of colour and the UI turns ghostly. Applied per section,
+   because a filter on the whole screen would trap the full-screen overlays inside it. */
+.screen > * { transition: filter 2s ease, opacity 2s ease; }
+.spirit > :not(.overlay):not(.night-sky):not(.alarm-card) { filter: grayscale(1) brightness(1.1); opacity: 0.72; }
+.spirit .picker button, .spirit .card, .spirit .inbox { background: rgba(160, 180, 220, 0.08); border-color: rgba(185, 198, 224, 0.25); }
 
 @media (prefers-reduced-motion: reduce) {
   .midnight.final { animation: none; }
@@ -292,3 +296,176 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .card-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .card-list li { display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 .dev-panel input { flex: 1; min-width: 0; min-height: 40px; padding: 8px 12px; font-size: 0.95rem; }
+
+/* ---------- Atmosphere (Milestone 6) ---------- */
+.screen { position: relative; }
+.screen > :not(.overlay):not(.alarm-card):not(.night-sky) { position: relative; z-index: 1; }
+.phase-body { display: flex; flex-direction: column; gap: 16px; }
+.fx-canvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
+
+/* Night: dim sky, faint moon, drifting fog. Only transform/opacity animate, for smoothness. */
+.phase-night { background: #05040a; transition: background 1.5s; }
+.night-sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; animation: fade-in 2s ease both; }
+.moon {
+  position: absolute;
+  left: 20px;
+  bottom: max(84px, calc(env(safe-area-inset-bottom) + 72px));
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  /* A crescent: only the inset shadow is drawn. */
+  box-shadow: inset 14px -8px 0 0 #f3ecd2;
+  filter: drop-shadow(0 0 16px rgba(255, 240, 200, 0.45));
+  opacity: 0.42;
+  transform: rotate(-20deg);
+}
+.fog {
+  position: absolute;
+  left: -50%;
+  width: 200%;
+  height: 45%;
+  background: radial-gradient(ellipse at 30% 50%, rgba(190, 190, 230, 0.09), transparent 55%),
+    radial-gradient(ellipse at 75% 50%, rgba(190, 190, 230, 0.07), transparent 50%);
+  will-change: transform;
+  animation: drift 38s ease-in-out infinite alternate;
+}
+.fog.f1 { top: 5%; }
+.fog.f2 { top: 40%; animation-duration: 52s; animation-direction: alternate-reverse; }
+.fog.f3 { top: 68%; animation-duration: 64s; }
+@keyframes drift { from { transform: translateX(-12%); } to { transform: translateX(12%); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Morning: candle light rises and flickers. */
+.candlelight {
+  position: fixed !important;
+  inset: 0;
+  z-index: 0 !important;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 115%, rgba(255, 160, 70, 0.32), rgba(255, 120, 40, 0.08) 45%, transparent 70%);
+  animation: fade-in 2.5s ease both, flicker-soft 3s ease-in-out 2.5s infinite;
+}
+@keyframes flicker-soft { 0%, 100% { opacity: 1; } 40% { opacity: 0.85; } 55% { opacity: 0.95; } 70% { opacity: 0.8; } }
+.burn { display: flex; justify-content: center; flex-wrap: wrap; }
+.burn span { display: inline-block; text-shadow: 0 0 12px rgba(255, 120, 40, 0.5); }
+
+/* Role reveal: the card flips over. */
+.flip-scene { perspective: 1000px; min-height: 340px; cursor: pointer; }
+.flip-card { position: relative; min-height: 340px; transform-style: preserve-3d; }
+.flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.flip-face.back {
+  gap: 12px;
+  background: repeating-linear-gradient(45deg, #1a1626 0 10px, #1f1a2e 10px 20px);
+  border: 1px solid #3a3150;
+  color: var(--muted);
+}
+.back-sigil { font-size: 4rem; color: var(--accent); text-shadow: 0 0 24px rgba(180, 140, 255, 0.6); }
+.flip-face.front { transform: rotateY(180deg); }
+.glow { animation: glow 2.4s ease-in-out infinite alternate; }
+@keyframes glow { from { box-shadow: 0 0 20px rgba(180, 140, 255, 0.2); } to { box-shadow: 0 0 46px rgba(180, 140, 255, 0.5); } }
+.flicker { animation: flicker-red 1.6s steps(1) 0.8s 2, glow-red 2s ease-in-out 4s infinite alternate; }
+@keyframes flicker-red {
+  0%, 100% { box-shadow: 0 0 32px rgba(255, 59, 78, 0.35); background: var(--surface); }
+  10% { box-shadow: 0 0 80px rgba(255, 59, 78, 0.9); background: #3a0a12; }
+  20% { box-shadow: 0 0 10px rgba(255, 59, 78, 0.2); background: var(--surface); }
+  35% { box-shadow: 0 0 90px rgba(255, 59, 78, 1); background: #4a0a14; }
+  50% { box-shadow: 0 0 32px rgba(255, 59, 78, 0.35); background: var(--surface); }
+}
+@keyframes glow-red { from { box-shadow: 0 0 24px rgba(255, 59, 78, 0.3); } to { box-shadow: 0 0 52px rgba(255, 59, 78, 0.6); } }
+.shake-once { animation: shake 0.6s ease 0.8s both; }
+.shake-loop { animation: shake 0.5s ease-in-out infinite; }
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-6px, 2px) rotate(-1deg); }
+  40% { transform: translate(5px, -3px) rotate(1deg); }
+  60% { transform: translate(-4px, 3px); }
+  80% { transform: translate(3px, -2px); }
+}
+
+/* Danger: pulsing red edges and a countdown ring. */
+.overlay.danger::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 60px 24px rgba(255, 30, 50, 0.85);
+  animation: edge-pulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes edge-pulse { from { opacity: 0.35; } to { opacity: 1; } }
+.ring { position: relative; display: grid; place-items: center; }
+.ring svg { transform: rotate(-90deg); }
+.ring-track { fill: none; stroke: rgba(255, 255, 255, 0.12); stroke-width: 8; }
+.ring-bar { fill: none; stroke: var(--danger); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.1s linear; }
+.ring-label { position: absolute; font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Relic race: a gold flash across the screen. */
+.gold-flash::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 230, 150, 0.9), rgba(243, 197, 91, 0.4) 50%, transparent 80%);
+  animation: flash 0.9s ease-out both;
+}
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+
+/* Vote reveal. */
+.suspense { animation: suspense 0.6s ease-in-out infinite alternate; }
+@keyframes suspense { from { opacity: 0.4; transform: scale(0.98); } to { opacity: 1; transform: scale(1.02); } }
+.verdict-slot { position: relative; z-index: 5; min-height: 150px; }
+.verdict-card {
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid #3a3150;
+  text-align: center;
+}
+.verdict-card p { margin: 0; }
+.verdict-card.possessed { border-color: var(--danger); box-shadow: 0 0 30px rgba(255, 59, 78, 0.4); }
+.shatter-wrap { position: relative; min-height: 150px; }
+.shard { position: absolute; inset: 0; }
+
+/* Becoming a Spirit. */
+.overlay.spirit-moment { background: rgba(20, 24, 36, 0.92); color: #cfd9ee; }
+.ghost-float { font-size: 4rem; margin: 0; animation: float 2.4s ease-in-out infinite alternate; }
+@keyframes float { from { transform: translateY(6px); opacity: 0.6; } to { transform: translateY(-10px); opacity: 1; } }
+
+.mute-btn {
+  position: fixed;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 35;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid #3a3150;
+  background: rgba(23, 20, 31, 0.85);
+  font-size: 1.1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fog,
+  .candlelight,
+  .glow,
+  .flicker,
+  .shake-once,
+  .shake-loop,
+  .suspense,
+  .ghost-float,
+  .gold-flash::before,
+  .overlay.danger::after {
+    animation: none !important;
+  }
+  .night-sky,
+  .candlelight { opacity: 1; }
+  .screen > * { transition: none; }
+}

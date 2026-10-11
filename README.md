@@ -47,6 +47,17 @@ the server has one (e.g. `PUBLIC_URL=https://haunted.example.com npm start`), ot
 the computer's Wi-Fi address when the host opened the game on `localhost`, otherwise the
 address the host opened. The full link is printed under the QR code.
 
+### Look, sound and install
+
+Animations use Framer Motion plus CSS (fog, candle light, pulses) and a small canvas for
+particle bursts. Sounds are synthesised in the browser (no audio files); the 🔊 button
+mutes them on that phone. With "reduce motion" switched on in the phone's settings,
+shakes, flickers, fog drift and particles are replaced by simple fades.
+
+The production build is an installable app (PWA): on Android choose "Install app" /
+"Add to home screen". On iPhone, keep playing in Safari, because the home-screen version
+cannot see card taps (see NFC cards above).
+
 ### Editing alarms
 
 Every surprise alarm (danger texts, mission pairs, whisper clue wording, village-wide

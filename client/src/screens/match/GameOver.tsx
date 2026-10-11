@@ -1,4 +1,8 @@
+import { useEffect } from 'react';
+import { motion } from 'framer-motion';
 import type { WinReason } from '@hv/shared';
+import { burst } from '../../fx/particles';
+import { sfx } from '../../fx/sound';
 import { actions } from '../../game';
 import { ErrorText, isHost, useAction, type PhaseProps } from './common';
 
@@ -13,13 +17,25 @@ export function GameOver({ view }: PhaseProps) {
   const { run, error } = useAction();
   const iWon = view.me.role === winner;
 
+  useEffect(() => {
+    if (iWon) {
+      sfx.win();
+      burst({ colors: winner === 'possessed' ? ['#ff3b4e', '#ff8a5c', '#5a0d18'] : ['#b48cff', '#f3c55b', '#ece6f5'], y: 0.3 });
+    } else sfx.lose();
+  }, [iWon, winner]);
+
   return (
     <section className="stack-center">
-      <div className={`role-card ${winner === 'possessed' ? 'possessed' : 'villager'}`}>
+      <motion.div
+        className={`role-card ${winner === 'possessed' ? 'possessed' : 'villager'}`}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6 }}
+      >
         <p className="role-name">{winner === 'possessed' ? 'The Possessed win' : 'The Villagers win'}</p>
         {winReason && <p className="small">{REASONS[winReason]}</p>}
         <p className="small">{iWon ? 'You won!' : 'You lost.'}</p>
-      </div>
+      </motion.div>
       <ul className="tally">
         {players.map((p) => (
           <li key={p.id} className={p.alive ? '' : 'dead'}>

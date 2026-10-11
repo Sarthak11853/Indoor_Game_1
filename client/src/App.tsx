@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { MotionConfig } from 'framer-motion';
+import { MuteButton } from './fx/Effects';
 import { actions, useGame } from './game';
 import { resumeNfcIfGranted } from './nfc';
 import { TapToast } from './nfc/NfcControls';
@@ -9,9 +11,11 @@ import { Lobby } from './screens/Lobby';
 import { Match } from './screens/match/Match';
 
 export function App() {
-  if (location.pathname === '/tap') return <TapPage />;
-  if (location.pathname === '/admin/cards') return <CardWriter />;
-  return <Game />;
+  let page = <Game />;
+  if (location.pathname === '/tap') page = <TapPage />;
+  if (location.pathname === '/admin/cards') page = <CardWriter />;
+  // reducedMotion="user": Framer Motion drops movement when the phone asks for less motion.
+  return <MotionConfig reducedMotion="user">{page}</MotionConfig>;
 }
 
 function Game() {
@@ -34,6 +38,7 @@ function Game() {
       )}
       {screen}
       <TapToast />
+      <MuteButton />
     </>
   );
 }

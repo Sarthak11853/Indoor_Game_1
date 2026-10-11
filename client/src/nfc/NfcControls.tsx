@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { sfx } from '../fx/sound';
 import { nfcUnavailableReason, startNfc, useNfc } from './index';
 
 /** "Enable card reader" button, or a short note on how cards work on this phone. */
@@ -22,6 +23,7 @@ export function TapToast() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (!lastTap) return;
+    if (lastTap.ok) sfx.tap();
     setVisible(true);
     const id = setTimeout(() => setVisible(false), 2500);
     return () => clearTimeout(id);

@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import type { AlarmView } from '@hv/shared';
 import { secondsLeft, useServerNow } from '../../clock';
+import { CountdownRing } from '../../fx/Effects';
+import { vibrate } from '../../fx/motion';
+import { burst } from '../../fx/particles';
+import { sfx } from '../../fx/sound';
 import { actions } from '../../game';
 import { ErrorText, nameOf, PlayerPicker, useAction, type PhaseProps } from './common';
 
@@ -31,21 +36,27 @@ function Countdown({ endsAt }: { endsAt: number }) {
   return <span className="alarm-count">{secondsLeft(endsAt, now)}</span>;
 }
 
-const buzz = (pattern: number[]) => {
-  try {
-    navigator.vibrate?.(pattern);
-  } catch {
-    // Vibration unsupported or blocked: skip silently.
-  }
-};
+const enter = { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.25 } };
 
 function DangerOverlay({ view, alarm }: PhaseProps & { alarm: AlarmView }) {
   const { run, error } = useAction();
-  useEffect(() => buzz([300, 100, 300, 100, 300]), [alarm.id]);
+  const now = useServerNow(100);
+  // Siren and buzz every second until answered or expired.
+  useEffect(() => {
+    const ring = () => {
+      sfx.danger();
+      vibrate([250, 100, 250]);
+    };
+    ring();
+    const id = setInterval(ring, 1000);
+    return () => clearInterval(id);
+  }, [alarm.id]);
   return (
-    <div className="overlay danger" role="alertdialog" aria-label="Danger">
+    <motion.div className="overlay danger" role="alertdialog" aria-label="Danger" {...enter}>
       <p className="alarm-kicker">Danger</p>
-      <Countdown endsAt={alarm.endsAt} />
+      <CountdownRing endsAt={alarm.endsAt} now={now}>
+        {secondsLeft(alarm.endsAt, now)}
+      </CountdownRing>
       <p className="lead">{alarm.text}</p>
       {view.public.settings.allowTapButton ? (
         <button className="btn primary charm-btn" onClick={() => run(actions.charm)}>
@@ -55,16 +66,24 @@ function DangerOverlay({ view, alarm }: PhaseProps & { alarm: AlarmView }) {
         <p className="muted">Hold your charm to the phone!</p>
       )}
       <ErrorText error={error} />
-    </div>
+    </motion.div>
   );
 }
 
 function PersonalCard({ alarm, onDismiss }: { alarm: AlarmView; onDismiss: () => void }) {
   const { run, error } = useAction();
-  useEffect(() => buzz([150]), [alarm.id]);
+  useEffect(() => {
+    sfx.ping();
+    vibrate(150);
+  }, [alarm.id]);
   const mission = alarm.kind === 'mission';
   return (
-    <section className={`alarm-card ${alarm.kind}`} role="status">
+    <motion.section
+      className={`alarm-card ${alarm.kind}`}
+      role="status"
+      initial={{ opacity: 0, y: -16 }}
+      animate={{ opacity: 1, y: 0 }}
+    >
       <div className="alarm-card-head">
         <span className="alarm-kicker">{mission ? 'Secret mission' : 'A whisper'}</span>
         {mission && <Countdown endsAt={alarm.endsAt} />}
@@ -80,21 +99,37 @@ function PersonalCard({ alarm, onDismiss }: { alarm: AlarmView; onDismiss: () =>
         </button>
       )}
       <ErrorText error={error} />
-    </section>
+    </motion.section>
   );
 }
 
 function VillageOverlay({ view, alarm, onDismiss }: PhaseProps & { alarm: AlarmView; onDismiss: () => void }) {
   const { run, error } = useAction();
-  useEffect(() => buzz([100, 60, 100]), [alarm.id]);
+  useEffect(() => {
+    vibrate([100, 60, 100]);
+    if (alarm.kind === 'blackout') sfx.toll();
+    if (alarm.kind === 'swapSeats') sfx.ping();
+    if (alarm.kind === 'relicRace') {
+      sfx.relic();
+      burst({ colors: ['#f3c55b', '#fff1b8', '#c99a2e'], count: 60, speed: 420 });
+    }
+  }, [alarm.id, alarm.kind]);
+
+  // The winner's phone explodes with gold.
+  const iWon = alarm.winnerId === view.me.playerId;
+  useEffect(() => {
+    if (!iWon) return;
+    sfx.win();
+    burst({ colors: ['#f3c55b', '#fff1b8', '#ffffff', '#c99a2e'], count: 160, speed: 700, duration: 1800 });
+  }, [iWon]);
 
   if (alarm.kind === 'blackout') {
     return (
-      <div className="overlay blackout" role="alertdialog" aria-label="Blackout">
+      <motion.div className="overlay blackout" role="alertdialog" aria-label="Blackout" {...enter}>
         <p className="alarm-kicker">Blackout</p>
         <Countdown endsAt={alarm.endsAt} />
         <p className="lead">{alarm.text}</p>
-      </div>
+      </motion.div>
     );
   }
 
@@ -104,7 +139,7 @@ function VillageOverlay({ view, alarm, onDismiss }: PhaseProps & { alarm: AlarmV
     const left = seats[(i - 1 + seats.length) % seats.length];
     const right = seats[(i + 1) % seats.length];
     return (
-      <div className="overlay swap" role="alertdialog" aria-label="Swap seats">
+      <motion.div className="overlay swap" role="alertdialog" aria-label="Swap seats" {...enter}>
         <p className="alarm-kicker">Swap seats</p>
         <Countdown endsAt={alarm.endsAt} />
         <p className="lead">{alarm.text}</p>
@@ -114,13 +149,13 @@ function VillageOverlay({ view, alarm, onDismiss }: PhaseProps & { alarm: AlarmV
         <button className="btn" onClick={onDismiss}>
           I’m in my new seat
         </button>
-      </div>
+      </motion.div>
     );
   }
 
   // Relic race
   return (
-    <div className="overlay relic" role="alertdialog" aria-label="Relic race">
+    <motion.div className="overlay relic gold-flash" role="alertdialog" aria-label="Relic race" {...enter}>
       <p className="alarm-kicker">Relic race</p>
       {alarm.winnerId ? (
         <p className="lead">{alarm.winnerId === view.me.playerId ? 'You' : nameOf(view, alarm.winnerId)} claimed the relic!</p>
@@ -139,7 +174,7 @@ function VillageOverlay({ view, alarm, onDismiss }: PhaseProps & { alarm: AlarmV
         </>
       )}
       <ErrorText error={error} />
-    </div>
+    </motion.div>
   );
 }
 

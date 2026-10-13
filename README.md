@@ -1,14 +1,26 @@
 # Haunted Village
 
-A real-time party game for 4–12 players in one room: phones in the browser plus physical NFC cards.
+A real-time party game for **4–12 friends in one room**. Everyone plays on their own phone
+in the browser (no install), with **physical NFC cards**: each player holds a *charm*, and a
+few *relics* lie face-down on the table. A match lasts 10–15 minutes.
 
-## Layout
+Villagers try to find the **Possessed** before the midnight clock strikes. Surprise alarms
+keep everyone on edge: danger alarms, secret missions, whispered clues, blackouts, seat swaps
+and relic races. The fallen return as **Spirits** who whisper hints or haunt the living.
 
-```
-shared/   TypeScript types + Socket.IO event names used by both sides
-server/   Node + Socket.IO, authoritative game state (src/game is pure, unit-tested)
-client/   React + Vite + TypeScript mobile web app
-```
+**Play it online:** see [DEPLOY.md](DEPLOY.md) for free hosting on Render.
+
+## How a round works
+
+1. **Role reveal**: each phone privately shows *Villager* or *Possessed* (1 per 4 players).
+2. **Night**: everyone taps their charm and picks a player. The Possessed choose a victim;
+   Villagers choose whom to protect (2 protectors save the victim, 1 when ≤5 are alive).
+3. **Morning**: the app reveals who was taken.
+4. **Day**: talk it out while surprise alarms fire.
+5. **Vote**: most votes is cast out and their role is revealed; ties save everyone.
+
+Villagers win when every Possessed is out. The Possessed win when they equal the Villagers
+or when the midnight clock (default 12 min) runs out.
 
 ## Run it locally
 
@@ -16,62 +28,60 @@ Requires Node 20+.
 
 ```bash
 npm install
-npm run dev        # server on :3001, client on http://localhost:5173
-npm test           # server unit tests
-npm run typecheck  # all packages
-npm run build && npm start   # production: one server on :3001 serving the client
+npm run dev      # client on http://localhost:5173, server on :3001
+npm test         # server tests (game rules, alarms, cards, sockets)
+npm run typecheck
+npm run build && npm start   # production build on http://localhost:3001
 ```
 
-Phones on the same Wi-Fi can open the "Network" URL that Vite prints. Open that same
-URL on the host's device too, so the lobby QR code points somewhere phones can reach.
+Phones on the same Wi-Fi can join: the lobby QR code automatically uses your computer's
+Wi-Fi address.
 
-### NFC cards
+**Testing alone:** add `?as=<name>` to give each browser tab its own player, e.g.
+`/?as=ana`, `/?as=ben`. Add `&dev=1` for a dev panel (development only) that simulates card
+taps and fires any alarm on demand.
 
-Every card holds one URL: `https://<your game address>/tap?card=<random id>`. Make cards
-at `/admin/cards` (Android Chrome writes them directly; on other phones it generates links
-to write with an NFC app such as "NFC Tools"). Write cards from your **deployed https
-address**, since the address is stored on the card.
+## NFC cards
 
-- **In the lobby**, each player taps their own card to link it as their charm (🔮).
-  Any card nobody linked counts as a relic during the match.
-- **Android Chrome**: press "Enable card reader" once; taps are read inside the game.
-  Web NFC only works on https addresses.
-- **iPhone**: hold the card to the top of the phone and tap the banner; it opens `/tap`,
-  which reports the tap and returns to the game. Play in Safari, not a home-screen icon.
-- **No cards?** Leave "On-screen tap button" on, or use the dev panel to simulate taps.
+Each card stores one link, `https://<game address>/tap?card=<random id>`. Cards are
+interchangeable: in the lobby each player taps a card to make it *their charm*; any card
+nobody claimed is a *relic*. Write cards at `/admin/cards` (see [DEPLOY.md](DEPLOY.md)).
 
-### Join links and QR codes
+- **Android (Chrome, https):** press "Enable card reader" once; taps are read in the game.
+- **iPhone:** hold the card to the top of the phone and tap the banner; the `/tap` page
+  reports the tap and returns to the game. Play in Safari, not from a home-screen icon.
+- **No cards:** keep "On-screen tap button" on in the lobby settings.
 
-The lobby QR code and share link use, in order: the `PUBLIC_URL` environment variable if
-the server has one (e.g. `PUBLIC_URL=https://haunted.example.com npm start`), otherwise
-the computer's Wi-Fi address when the host opened the game on `localhost`, otherwise the
-address the host opened. The full link is printed under the QR code.
+## Customising
 
-### Look, sound and install
+| What | Where |
+|---|---|
+| All alarm texts, missions, clue wording, timings and weights | `server/src/alarms/alarms.config.ts` |
+| Default match lengths and limits | `shared/src/types.ts` (`DEFAULT_SETTINGS`, `PHASE_SECONDS`) |
+| Sounds (synthesised, no files) | `client/src/fx/sound.ts` |
+| Colours and effects | `client/src/styles.css` |
 
-Animations use Framer Motion plus CSS (fog, candle light, pulses) and a small canvas for
-particle bursts. Sounds are synthesised in the browser (no audio files); the 🔊 button
-mutes them on that phone. With "reduce motion" switched on in the phone's settings,
-shakes, flickers, fog drift and particles are replaced by simple fades.
+| Environment variable | Purpose |
+|---|---|
+| `PORT` | Port to listen on (default 3001). |
+| `PUBLIC_URL` | Address used in QR codes and share links (Render's address is detected automatically). |
+| `HV_DEV=1` | Allow the dev alarm trigger on a production build. |
 
-The production build is an installable app (PWA): on Android choose "Install app" /
-"Add to home screen". On iPhone, keep playing in Safari, because the home-screen version
-cannot see card taps (see NFC cards above).
+## Project layout
 
-### Editing alarms
+```
+shared/   Types and Socket.IO event names shared by both sides; NFC card id helpers
+server/   Node + Express + Socket.IO. The server is authoritative.
+  src/game/     Pure state machine (lobby → reveal → night → morning → day → vote → result)
+  src/alarms/   Surprise alarm engine + alarms.config.ts
+  src/rooms/    Room store interface (in-memory now, Redis-ready) and room service
+  src/net/      Socket handlers, timers, /api/tap
+client/   React + Vite + TypeScript PWA
+  src/nfc/      The only NFC code: onCardTapped(cardId), Web NFC, card helpers
+  src/screens/  Lobby and one screen per phase
+  src/pages/    /tap (iPhone card route) and /admin/cards (card writer)
+  src/fx/       Animations, particles, sounds
+```
 
-Every surprise alarm (danger texts, mission pairs, whisper clue wording, village-wide
-alarms, timings and weights) lives in `server/src/alarms/alarms.config.ts`.
-
-### Dev panel
-
-Add `?dev=1` to the URL to get a "Dev tools" panel that simulates card taps (link a
-charm, tap your charm, tap a relic, or any card id) and, during the day, fires any alarm
-immediately. The dev server allows it; a production build refuses it unless started
-with `HV_DEV=1`.
-
-### Testing several players on one computer
-
-Each player's seat is saved in the browser, so normal tabs share one seat. Add
-`?as=<anything>` to give a tab its own seat, e.g. `http://localhost:5173/?as=ben`
-and `http://localhost:5173/?as=cy`.
+**Privacy:** the server sends each phone only its own private view (`server/src/game/view.ts`);
+other players' roles never leave the server until they are out or the game ends.

@@ -21,9 +21,11 @@ export function createGameServer(rooms = new RoomService(new MemoryRoomStore()),
     res.json({ ok: true });
   });
 
-  // Where phones should go to join: PUBLIC_URL if set, else this machine's LAN addresses.
+  // Where phones should go to join: PUBLIC_URL if set (Render sets RENDER_EXTERNAL_URL
+  // for us), else this machine's LAN addresses.
   app.get('/api/public-url', (_req, res) => {
-    const info: PublicUrlInfo = { publicUrl: process.env.PUBLIC_URL?.trim() || null, lanAddresses: lanAddresses() };
+    const publicUrl = process.env.PUBLIC_URL?.trim() || process.env.RENDER_EXTERNAL_URL?.trim() || null;
+    const info: PublicUrlInfo = { publicUrl, lanAddresses: lanAddresses() };
     res.json(info);
   });
 

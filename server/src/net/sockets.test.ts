@@ -166,6 +166,11 @@ describe('lobby over sockets', () => {
     delete process.env.PUBLIC_URL;
     expect(info.publicUrl).toBe('https://village.example');
     expect(Array.isArray(info.lanAddresses)).toBe(true);
+
+    process.env.RENDER_EXTERNAL_URL = 'https://haunted-village.onrender.com';
+    const onRender = await fetch(`${url}/api/public-url`).then((r) => r.json());
+    delete process.env.RENDER_EXTERNAL_URL;
+    expect(onRender.publicUrl).toBe('https://haunted-village.onrender.com');
   });
 
   it('rejects host actions from non-hosts and malformed payloads', async () => {

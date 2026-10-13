@@ -4,8 +4,11 @@ import { actions } from '../game';
 import { onCardTapped } from '../nfc';
 import { ErrorText, useAction } from './match/common';
 
-/** Shown with ?dev=1 in the URL. Lets you test everything without cards and without waiting. */
-export const devMode = new URLSearchParams(location.search).has('dev');
+/**
+ * Shown with ?dev=1 in the URL during development (npm run dev). Hidden in production
+ * builds so players can't fake card taps in a real match.
+ */
+export const devMode = import.meta.env.DEV && new URLSearchParams(location.search).has('dev');
 
 export function DevPanel({ view }: { view: ClientView }) {
   const { run, error } = useAction();

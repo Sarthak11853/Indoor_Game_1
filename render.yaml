@@ -1,0 +1,15 @@
+# Render Blueprint: one free web service that serves the app and the live game.
+# Deploy: Render dashboard → New → Blueprint → pick this repository.
+# Rooms live in memory, so keep this to a single instance (the free plan always is).
+services:
+  - type: web
+    name: haunted-village
+    runtime: node
+    plan: free
+    # Dev dependencies (Vite, esbuild) are needed to build, so include them explicitly.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
